@@ -1,3 +1,4 @@
+#!/bin/bash
 
 error_directory=$1
 #list of run numbers
