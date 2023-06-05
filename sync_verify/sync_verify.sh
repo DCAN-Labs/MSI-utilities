@@ -52,18 +52,38 @@ verify_sync_status() {
         fi
 
         # Use rsync to compare the source and destination directories or files
-        local rsync_command=("rsync" "-a" "--dry-run" "--itemize-changes")
+        local rsync_command=("rsync" "-av" "--dry-run" "--itemize-changes")
         if [[ $use_checksum == true ]]; then
             rsync_command+=("--checksum")
         fi
         rsync_command+=("$source_path/" "$dest_path/")
 
-        if "${rsync_command[@]}" | grep -q "^[^d]"; then
+        output=$("${rsync_command[@]}")
+        if [[ -n $output ]]; then
             echo "Failed to sync: $source_path -> $dest_path"
-            return
-        fi
+            while read -r line; do
+                if [[ $line == *">f"* ]] || [[ $line == *">d"* ]]; then
+                    echo "$line"
+                fi
+            done <<< "$output"
+        else
+            echo "Sync is up to date: $source_path -> $dest_path"
 
-        echo "Synced: $source_path -> $dest_path"
+            # Check if all files and directories in the source path exist in the destination path
+            find "$source_path" -type f -exec shasum {} + | while read -r source_file_sum source_file; do
+                local dest_file="${source_file/$source_path/$dest_path}"
+                if ! verify_s3_file "$dest_file"; then
+                    echo "File not found in destination: $source_file -> $dest_file"
+                fi
+            done
+
+            find "$source_path" -type d -exec echo {} \; | while read -r source_dir; do
+                local dest_dir="${source_dir/$source_path/$dest_path}"
+                if ! verify_s3_directory "$dest_dir"; then
+                    echo "Directory not found in destination: $source_dir -> $dest_dir"
+                fi
+            done
+        fi
 
         # Compare file contents if checksum is specified
         if [[ $use_checksum == true ]]; then
@@ -79,6 +99,21 @@ verify_sync_status() {
             done
         fi
     fi
+}
+
+verify_sync_status() {
+    #list all of the files in source path (s3 or local)
+    #list all of the files in destination path (s3 or local)
+    #diff between the two file lists
+    base_path/subject/ses/cat/dog/file.text
+    #use find for local (no flags)
+    find ${local_path} | grep -oP "(?<=${local_path}).*$"
+    s3_base_path/subject/ses/cat/dog/file.txt
+    #use s3cmd ls --recursive for s3
+    s3cmd ls --recursive $s3_path | grep -oP "(?<=${s3_path}).*$"
+    #trim out base paths before comparing the lists
+    #if there are any differences, let the user know what those are
+    #if they are the same, let the user know it worked
 }
 
 # Function to verify sync status for multiple directories or files listed in a text file
