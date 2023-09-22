@@ -17,6 +17,7 @@
 #   - test out ability to add in other error strings
 #   - need to add in a catch for .err files that dont have an error string in them/or a completed processing string
 #   - add in comments
+#   - need to straighten out help in args 
 
 import os
 import glob
