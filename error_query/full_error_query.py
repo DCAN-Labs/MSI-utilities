@@ -13,7 +13,7 @@
 #      and the associated subject_id and session_id for that error log (found using run number)
 
 # TODO:
-#   - edit arg parse and help function
+#   - edit arg parse, specifically help information 
 #   - test on directories 
 #   - test out ability to add in other error strings
 

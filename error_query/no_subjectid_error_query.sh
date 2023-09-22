@@ -24,7 +24,3 @@ echo "Run numbers that have no subject ID in the logs:" $no_subjectid_runs
 done
 
 echo "Run numbers that have no subject ID in the logs:" $no_subjectid_runs | sed 's/,$//' | cat - ${output_path}/${no_subjectids_file} >> temp && mv temp ${output_path}/${no_subjectids_file}
-
-#create comma separated list of each type of fail
-
-# /home/rando149/shared/projects/ABCC_year2_derivatives_reprocessing/slurm_abcd-hcp-pipeline_rerun/output_logs/
