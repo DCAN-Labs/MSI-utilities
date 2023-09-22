@@ -13,9 +13,10 @@
 #      and the associated subject_id and session_id for that error log (found using run number)
 
 # TODO:
-#   - edit arg parse, specifically help information 
 #   - test on directories 
 #   - test out ability to add in other error strings
+#   - need to add in a catch for .err files that dont have an error string in them/or a completed processing string
+#   - add in comments
 
 import os
 import glob
@@ -39,14 +40,41 @@ error_strings = {
 }
 
 def main():
-    parser = argparse.ArgumentParser(description="Review error logs and extract relevant information.")
-    parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", help="Path to the output_logs directory.")
-    parser.add_argument("-r", "--run_files_dir", dest="run_files_dir", action="store_true", default="", help="Path to the run_files directory.")
-    parser.add_argument("-o", "--output_dir", dest="output_dir", help="Path to the directory where the CSVs will be saved.")
+    parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.")
+    parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", 
+                        help="Required. Path to the output_logs directory."
+                        )
+    parser.add_argument("-r", "--run_files_dir", dest="run_files_dir", action="store_true", default="", 
+                        help="Optional. Path to the run_files directory."
+                            "Recommended to use if there could be missing subject information in the .err file."
+                            "IMPORTANT: if run files in this directory have been remade since running the processing jobs,"
+                            "this could result in the incorrect subject information being matched to the .err log."
+                            "Suggestion is to only use this flag after first round of processing."
+                        )
+    parser.add_argument("-o", "--output_dir", dest="output_dir", 
+                        help="Required. Path to the directory where the CSVs will be saved."
+                        )
     parser.add_argument("-p", "--add_error_log_path", dest="add_error_log_path", action="store_true", default = False,
-                    help="Include the 'Error_Log_Path' in the CSVs for each .err file.")
+                        help="Include the 'Error_Log_Path' in the CSVs for each .err file."
+                        )
     parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings,
-                        help="Dictionary of error strings to search for.")
+                        help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:"
+                            "'time_limit': 'DUE TO TIME LIMIT',"
+                            "'oom': 'oom-kill',"
+                            "'assertion_error': 'AssertionError',"
+                            "'key_error': 'KeyError',"
+                            "'index_error': 'IndexError',"
+                            "'s3_credentials': 'An error occurred fetching S3 credentials',"
+                            "'s3_quota': 'ERROR: S3 error: 403 (QuotaExceeded)',"
+                            "'no_response_status': 'ERROR: Cannot retrieve any response status before encountering an EPIPE or ECONNRESET exception',"
+                            "'upload_failed': 'WARNING: Upload failed:',"
+                            "'unable_to_copy': 'WARNING: Unable to remote copy files',"
+                            "'ssl_verification': 'ERROR: SSL certificate verification failure:',"
+                            "'connection_reset': 'error: [Errno 104] Connection reset by peer'"
+                            
+                            "In order to add a new error string to search for, use this format:"
+                            "'csv_title': 'string to search for'"
+                        )
     args = parser.parse_args()
 
     run_numbers = get_run_numbers(args.output_logs_dir)
