@@ -16,17 +16,17 @@
 #   - test on directories 
 #   - test out ability to add in other error strings
 #   - add in comments
-#   - need to straighten out help in args 
-#	- run files command is not working!
+#   - need to consolidate find_subject_session_ids function 
 
 import os
 import glob
 import re
 import csv
 import argparse
+from argparse import RawTextHelpFormatter
 
 error_strings = {
-    "undetermined": " ",
+    "undetermined_or_no": " ",
     "time_limit": "DUE TO TIME LIMIT",
     "oom": "oom-kill",
     "assertion_error": "AssertionError",
@@ -42,48 +42,49 @@ error_strings = {
 }
 
 def main():
-    parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.")
-    parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", 
+    parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.", formatter_class=RawTextHelpFormatter)
+    parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", required=True,
                         help="Required. Path to the output_logs directory."
                         )
-    parser.add_argument("-r", "--run_files_dir", dest="run_files_dir", action="store_true", default="", 
-                        help="Optional. Path to the run_files directory."
-                            "Recommended to use if there could be missing subject information in the .err file."
-                            "IMPORTANT: if run files in this directory have been remade since running the processing jobs,"
-                            "this could result in the incorrect subject information being matched to the .err log."
+    parser.add_argument("-r", "--run_files_dir", dest="run_files_dir", default="", required=False,
+                        help="Optional. Path to the run_files directory.\n"
+                            "Recommended to use if there could be missing subject information in the .err file.\n"
+                            "IMPORTANT: if run files in this directory have been remade since running the processing jobs,\n"
+                            "this could result in the incorrect subject information being matched to the .err log.\n"
                             "Suggestion is to only use this flag after first round of processing."
                         )
-    parser.add_argument("-o", "--output_dir", dest="output_dir", 
+    parser.add_argument("-o", "--output_dir", dest="output_dir", required=True,
                         help="Required. Path to the directory where the CSVs will be saved."
                         )
-    parser.add_argument("-p", "--add_error_log_path", dest="add_error_log_path", action="store_true", default = False,
-                        help="Include the 'Error_Log_Path' in the CSVs for each .err file."
+    parser.add_argument("-p", "--add_error_log_path", dest="add_error_log_path", action="store_true", default = False, required=False,
+                        help="Optional. Include the 'Error_Log_Path' in the CSVs for each .err file."
                         )
-    parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings,
-                        help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:"
-                            "'time_limit': 'DUE TO TIME LIMIT',"
-                            "'oom': 'oom-kill',"
-                            "'assertion_error': 'AssertionError',"
-                            "'key_error': 'KeyError',"
-                            "'index_error': 'IndexError',"
-                            "'s3_credentials': 'An error occurred fetching S3 credentials',"
-                            "'s3_quota': 'ERROR: S3 error: 403 (QuotaExceeded)',"
-                            "'no_response_status': 'ERROR: Cannot retrieve any response status before encountering an EPIPE or ECONNRESET exception',"
-                            "'upload_failed': 'WARNING: Upload failed:',"
-                            "'unable_to_copy': 'WARNING: Unable to remote copy files',"
-                            "'ssl_verification': 'ERROR: SSL certificate verification failure:',"
-                            "'connection_reset': 'error: [Errno 104] Connection reset by peer'"
-                            
-                            "In order to add a new error string to search for, use this format:"
-                            "'csv_title': 'string to search for'"
+    parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings, required=False,
+                        help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:\n"
+                            "'undetermined_or_no': ' ',\n"
+                            "'time_limit': 'DUE TO TIME LIMIT',\n"
+                            "'oom': 'oom-kill',\n"
+                            "'assertion_error': 'AssertionError',\n"
+                            "'key_error': 'KeyError',\n"
+                            "'index_error': 'IndexError',\n"
+                            "'s3_credentials': 'An error occurred fetching S3 credentials',\n"
+                            "'s3_quota': 'ERROR: S3 error: 403 (QuotaExceeded)',\n"
+                            "'no_response_status': 'ERROR: Cannot retrieve any response status before encountering an EPIPE or ECONNRESET exception',\n"
+                            "'upload_failed': 'WARNING: Upload failed:',\n"
+                            "'unable_to_copy': 'WARNING: Unable to remote copy files',\n"
+                            "'ssl_verification': 'ERROR: SSL certificate verification failure:',\n"
+                            "'connection_reset': 'error: [Errno 104] Connection reset by peer'\n"
+                            "\n"
+                            "In order to add a new error string to search for, use this format:\n"
+                            "'csv_title': 'string to search for'\n"
                         )
     args = parser.parse_args()
 
     run_numbers = get_run_numbers(args.output_logs_dir)
     most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
-    errors_by_string, run_numbers_with_error = find_errors(args.error_strings, most_recent_err_files)
+    errors_by_string, run_numbers_with_error, run_numbers_without_error = find_errors(args.error_strings, most_recent_err_files)
 
-    error_data = find_subject_session_ids(args.run_files_dir, run_numbers_with_error, most_recent_err_files)
+    error_data = find_subject_session_ids(args.run_files_dir, run_numbers_with_error, run_numbers_without_error, most_recent_err_files)
     matched_error_data = match_error_data(error_data, errors_by_string)
 
     match_and_print_errors(matched_error_data, error_strings, args.output_dir, args.add_error_log_path)
@@ -114,6 +115,7 @@ def find_errors(error_strings, most_recent_err_files):
     
     errors_by_string = {error_string: [] for error_string in error_strings_list} 
     run_numbers_with_error = set()
+    run_numbers_without_error = set()
     
     for run_number, err_file in most_recent_err_files.items():
         with open(err_file, 'r') as err_file:
@@ -125,11 +127,12 @@ def find_errors(error_strings, most_recent_err_files):
             for error_string in error_strings_list[0]:
                 if run_number not in run_numbers_with_error:
                     errors_by_string[error_string].append(run_number)
+                    run_numbers_without_error.add(run_number)
     
-    return errors_by_string, run_numbers_with_error
+    return errors_by_string, run_numbers_with_error, run_numbers_without_error
 
 # Find subject_id and session_id for each run number within the associated error file
-def find_subject_session_ids(run_files_dir, run_numbers_with_error, most_recent_err_files):
+def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_without_error, most_recent_err_files):
     error_data = {
         "Run_Number": [],
         "Error_Log_Paths": [],
@@ -138,6 +141,47 @@ def find_subject_session_ids(run_files_dir, run_numbers_with_error, most_recent_
     }
 
     for run_number in run_numbers_with_error:
+        with open(most_recent_err_files[run_number], 'r') as err_file:
+            err_content = err_file.read()
+            sub_match = re.search(r"sub-([a-zA-Z0-9_]+)", err_content)
+            ses_match = re.search(r"ses-([a-zA-Z0-9_]+)", err_content)
+            if sub_match and ses_match:
+                subject_id = sub_match.group(1)
+                session_id = ses_match.group(1)
+                inputs = [run_number, most_recent_err_files[run_number], subject_id, session_id]
+                for key, value in zip(error_data.keys(), inputs):
+                    error_data[key].append(value)
+            elif not run_files_dir == "": 
+                # If subject_id and session_id not found, extract info from the associated run file in the run_files directory 
+                run_file = os.path.join(run_files_dir, f"run{run_number}")
+                if os.path.exists(run_file):
+                    with open(run_file, 'r') as run_file:
+                        lines = run_file.readlines()
+                        subject_id = None
+                        session_id = None
+                        for line in lines:
+                            if "subject_id" in line:
+                                subject_id = re.search(r"subject_id=(\w+)", line)
+                                if subject_id:
+                                    subject_id = subject_id.group(1)
+                            elif "ses_id" in line:
+                                session_id = re.search(r"ses_id=(\w+)", line)
+                                if session_id:
+                                    session_id = session_id.group(1)
+                            if subject_id and session_id:
+                                break
+                        if subject_id and session_id:
+                            inputs = [run_number, most_recent_err_files[run_number], subject_id, session_id]
+                            for key, value in zip(error_data.keys(), inputs):
+                                error_data[key].append(value)
+            else:
+                subject_id = None
+                session_id = None
+                inputs = [run_number, most_recent_err_files[run_number], subject_id, session_id]
+                for key, value in zip(error_data.keys(), inputs):
+                    error_data[key].append(value)
+
+    for run_number in run_numbers_without_error:
         with open(most_recent_err_files[run_number], 'r') as err_file:
             err_content = err_file.read()
             sub_match = re.search(r"sub-([a-zA-Z0-9_]+)", err_content)
@@ -187,16 +231,21 @@ def match_error_data(error_data, errors_by_string):
 
     for string, run_numbers in errors_by_string.items():
         for run_number in run_numbers:
-            if run_number in error_data['Run_Number']:
+            if run_number in error_data['Run_Number'] and string not in matched_error_data:
                 run_index = error_data['Run_Number'].index(run_number)
                 error_data_dict = {
                     'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
                     'Subject_ID': error_data['Subject_IDs'][run_index],
                     'Session_ID': error_data['Session_IDs'][run_index]
                 }
-            if string not in matched_error_data:
                 matched_error_data[string] = [error_data_dict]
-            else:    
+            else:   
+                run_index = error_data['Run_Number'].index(run_number)
+                error_data_dict = {
+                    'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
+                    'Subject_ID': error_data['Subject_IDs'][run_index],
+                    'Session_ID': error_data['Session_IDs'][run_index]
+                } 
                 matched_error_data[string].append(error_data_dict)
     
     return matched_error_data
@@ -208,15 +257,16 @@ def match_and_print_errors(matched_error_data, error_strings, output_dir, add_er
     matched_errors = {}
 
     # Iterate through the keys in matched_error_data.
-    for error_key in matched_error_data:
+    # !!this for loop needs to be triaged!!
+    for error_key in matched_error_data.keys():
         # Iterate through the error_strings dictionary to find a match.
         for error_name, error_value in error_strings.items():
             if error_value in error_key:
                 # Append the error data to the matched_errors dictionary.
-                if error_name in matched_errors:
-                    matched_errors[error_name].extend(matched_error_data[error_key])
-                else:
+                if error_name not in matched_errors.keys():
                     matched_errors[error_name] = matched_error_data[error_key]
+
+                    
 
     # Iterate through the matched_errors and write to CSV files.
     for error_name, error_data_list in matched_errors.items():
