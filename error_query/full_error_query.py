@@ -15,9 +15,9 @@
 # TODO:
 #   - test on directories 
 #   - test out ability to add in other error strings
-#   - need to add in a catch for .err files that dont have an error string in them/or a completed processing string
 #   - add in comments
 #   - need to straighten out help in args 
+#	- run files command is not working!
 
 import os
 import glob
@@ -26,6 +26,7 @@ import csv
 import argparse
 
 error_strings = {
+    "undetermined": " ",
     "time_limit": "DUE TO TIME LIMIT",
     "oom": "oom-kill",
     "assertion_error": "AssertionError",
@@ -109,16 +110,21 @@ def get_most_recent_err_files(output_logs_dir, run_numbers):
 
 # Read error files and look for specific error strings
 def find_errors(error_strings, most_recent_err_files):
-    errors_by_string = {error_string: [] for error_string in error_strings.values()} 
+    error_strings_list = list(error_strings.values())
+    
+    errors_by_string = {error_string: [] for error_string in error_strings_list} 
     run_numbers_with_error = set()
     
     for run_number, err_file in most_recent_err_files.items():
         with open(err_file, 'r') as err_file:
             content = err_file.read()
-            for error_string in error_strings.values():
+            for error_string in error_strings_list[1:]:
                 if error_string in content:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_with_error.add(run_number)
+            for error_string in error_strings_list[0]:
+                if run_number not in run_numbers_with_error:
+                    errors_by_string[error_string].append(run_number)
     
     return errors_by_string, run_numbers_with_error
 
