@@ -11,7 +11,7 @@
 #   6. return csvs for each error that contain the associated subject_id and session_id, and optionally the path to the error log that contains the error
 
 # TODO:
-#   - test on directories 
+#   - test on processing directories
 #   - test out ability to add in other error strings
 #   - add in comments
 #   - need to consolidate find_subject_session_ids function 
