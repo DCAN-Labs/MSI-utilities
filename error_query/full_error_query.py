@@ -13,7 +13,7 @@
 # TODO:
 #   - test on processing directories
 #   - test out ability to add in other error strings
-#   - add in comments
+#   - review/add in comments for functions
 #   - need to consolidate find_subject_session_ids function 
 
 # import necessary modules
