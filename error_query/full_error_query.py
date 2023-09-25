@@ -1,16 +1,14 @@
-# Steps:
+# Brief outline of the scripts steps:
 #   1. set the variables: 
-#       a. input_1 needs to be a path to the output_logs directory
-#       b. input_2 will be a path to the run_files directory, to find the associated sub/ses information for each unique run file
-#       c. output will be a path to a directory where the csvs will go
-#   2. parse through the output_logs directory and create a unique list of all the run numbers
+#       a. output_logs_dir is a path to the output_logs directory
+#       b. run_files_dir is a path to the run_files directory, used to find the associated sub/ses information for each unique run file (if necessary)
+#       c. output_path will be a path to a directory where the csvs will go
+#   2. parse through the output_logs_dir and create a unique list of all the run numbers
 #   3. find the most recent .err file associated with each unique run number
-#   4. read each error file and look to match certain strings that are associated with certain errors
-#   5. create a list of all the run numbers that have a certain error string associated with it
-#   6. using each list of run numbers, find subject_id and session_id for each run number within the associated error file.
-#      If subject_id and session_id not found within the .err file, extract info from the associated run file in the run_files directory
-#   7. return csvs for each error that contain the path to the error log that contains the error, 
-#      and the associated subject_id and session_id for that error log (found using run number)
+#   4. read each error file and find certain error strings, then match information with run number identifier 
+#   5. using run number identifier, find subject_id and session_id for each associated error file;
+#      if subject_id and session_id not found within the .err file, extract info from the associated run file in the run_files directory
+#   6. return csvs for each error that contain the associated subject_id and session_id, and optionally the path to the error log that contains the error
 
 # TODO:
 #   - test on directories 
@@ -18,6 +16,7 @@
 #   - add in comments
 #   - need to consolidate find_subject_session_ids function 
 
+# import necessary modules
 import os
 import glob
 import re
@@ -25,6 +24,7 @@ import csv
 import argparse
 from argparse import RawTextHelpFormatter
 
+# default dictionary of error strings to search for
 error_strings = {
     "undetermined_or_no": " ",
     "time_limit": "DUE TO TIME LIMIT",
@@ -42,6 +42,7 @@ error_strings = {
 }
 
 def main():
+    # set the input variables using argument parser
     parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.", formatter_class=RawTextHelpFormatter)
     parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", required=True,
                         help="Required. Path to the output_logs directory."
@@ -80,16 +81,20 @@ def main():
                         )
     args = parser.parse_args()
 
+    # parse through the output_logs_dir and create a unique list of all the run numbers
     run_numbers = get_run_numbers(args.output_logs_dir)
+    # find the most recent .err file associated with each unique run number
     most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
+    # read each error file and find certain error strings, then match information with run number identifier
     errors_by_string, run_numbers_with_error, run_numbers_without_error = find_errors(args.error_strings, most_recent_err_files)
-
+    # using run number identifier, find subject_id and session_id for each associated error file
     error_data = find_subject_session_ids(args.run_files_dir, run_numbers_with_error, run_numbers_without_error, most_recent_err_files)
+    # match the error data for each error string
     matched_error_data = match_error_data(error_data, errors_by_string)
-
+    # print the identified information in a csv for each error
     match_and_print_errors(matched_error_data, error_strings, args.output_dir, args.add_error_log_path)
 
-# Create a unique list of run numbers from output_logs directory
+# create a unique list of run numbers from output_logs directory
 def get_run_numbers(output_logs_dir):
     run_numbers = set()
     for root, _, files in os.walk(output_logs_dir):
