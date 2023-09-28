@@ -131,8 +131,8 @@ def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
         err_content = file.read()
         with open(sub_ids_csv, 'r'):
             for line in sub_ids_csv.line():
-                    sub_id = #split at comma left group
-                    ses_id = #split at comma right group    
+                    sub_id = line.split(",",0)
+                    ses_id = line.split(",",1)
                     sub_match = re.search(sub_id, err_content)
                     ses_match = re.search(ses_id, err_content)
                     if sub_match and ses_match:
