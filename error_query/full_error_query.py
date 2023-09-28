@@ -12,6 +12,7 @@
 
 # TODO:
 #   - test on processing directories
+#   - need to add in and test option to search by subject id OR run number
 #   - test out ability to add in other error strings
 #   - review/add in comments for functions
 #   - need to consolidate find_subject_session_ids function 
@@ -43,6 +44,7 @@ error_strings = {
 
 def main():
     # set the input variables using argument parser
+    # TODO: need to test argument for sub_ids_csv
     parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.", formatter_class=RawTextHelpFormatter)
     parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", required=True,
                         help="Required. Path to the output_logs directory."
@@ -56,6 +58,9 @@ def main():
                         )
     parser.add_argument("-o", "--output_dir", dest="output_dir", required=True,
                         help="Required. Path to the directory where the CSVs will be saved."
+                        )
+    parser.add_argument("-s", "--sub_ids_csv", dest="sub_ids_csv", default="", required=False,
+                        help="Optional. Path to a csv containing specific subject_id,session_id pair to search for in each log file."
                         )
     parser.add_argument("-p", "--add_error_log_path", dest="add_error_log_path", action="store_true", default = False, required=False,
                         help="Optional. Include the 'Error_Log_Path' in the CSVs for each .err file."
@@ -84,7 +89,11 @@ def main():
     # parse through the output_logs_dir and create a unique list of all the run numbers
     run_numbers = get_run_numbers(args.output_logs_dir)
     # find the most recent .err file associated with each unique run number
-    most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
+    # TODO: need to test option for using get_most_recent_err_files_from_id when csv is present
+    if args.sub_ids_csv == "":
+        most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
+    else: 
+        most_recent_err_files = get_most_recent_err_files_from_id(args.output_logs_dir, args.sub_ids_csv)
     # read each error file and find certain error strings, then match information with run number identifier
     errors_by_string, run_numbers_with_error, run_numbers_without_error = find_errors(args.error_strings, most_recent_err_files)
     # using run number identifier, find subject_id and session_id for each associated error file
@@ -112,6 +121,23 @@ def get_most_recent_err_files(output_logs_dir, run_numbers):
         err_files = glob.glob(os.path.join(output_logs_dir, f"*_{run_number}.err"))
         if err_files:
             most_recent_err_files[run_number] = max(err_files, key=os.path.getctime)
+    return most_recent_err_files
+
+# TODO: from subject id list, find most recent err file !! need to test !!
+def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
+    most_recent_err_files = {}
+    err_files = glob.glob(os.path.join(output_logs_dir, f"*.err"))
+    for file in err_files:
+        err_content = file.read()
+        with open(sub_ids_csv, 'r'):
+            for line in sub_ids_csv.line():
+                    sub_id = #split at comma left group
+                    ses_id = #split at comma right group    
+                    sub_match = re.search(sub_id, err_content)
+                    ses_match = re.search(ses_id, err_content)
+                    if sub_match and ses_match:
+                        most_recent_err_files[sub_id] = max(file, key=os.path.getctime)
+    
     return most_recent_err_files
 
 # Read error files and look for specific error strings
