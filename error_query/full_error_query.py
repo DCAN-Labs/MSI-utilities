@@ -263,23 +263,29 @@ def match_error_data(error_data, errors_by_string):
 
     for string, run_numbers in errors_by_string.items():
         for run_number in run_numbers:
-            if run_number in error_data['Run_Number'] and string not in matched_error_data:
-                run_index = error_data['Run_Number'].index(run_number)
-                error_data_dict = {
-                    'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
-                    'Subject_ID': error_data['Subject_IDs'][run_index],
-                    'Session_ID': error_data['Session_IDs'][run_index]
-                }
-                matched_error_data[string] = [error_data_dict]
-            else:   
-                run_index = error_data['Run_Number'].index(run_number)
-                error_data_dict = {
-                    'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
-                    'Subject_ID': error_data['Subject_IDs'][run_index],
-                    'Session_ID': error_data['Session_IDs'][run_index]
-                } 
-                matched_error_data[string].append(error_data_dict)
-    
+            try:
+                if run_number in error_data['Run_Number'] and string not in matched_error_data:
+                    run_index = error_data['Run_Number'].index(run_number)
+                    error_data_dict = {
+                        'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
+                        'Subject_ID': error_data['Subject_IDs'][run_index],
+                        'Session_ID': error_data['Session_IDs'][run_index]
+                    }
+                    matched_error_data[string] = [error_data_dict]
+                else:   
+                    run_index = error_data['Run_Number'].index(run_number)
+                    error_data_dict = {
+                        'Error_Log_Path': error_data['Error_Log_Paths'][run_index],
+                        'Subject_ID': error_data['Subject_IDs'][run_index],
+                        'Session_ID': error_data['Session_IDs'][run_index]
+                    } 
+                    matched_error_data[string].append(error_data_dict)
+            except ValueError as e:
+                if str(e) == "'0' is not in list":
+                    pass
+                else:
+                    raise
+
     return matched_error_data
 
 
