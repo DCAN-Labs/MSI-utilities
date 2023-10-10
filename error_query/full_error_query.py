@@ -282,6 +282,7 @@ def match_error_data(error_data, errors_by_string):
                     matched_error_data[string].append(error_data_dict)
             except ValueError as e:
                 if str(e) == "'0' is not in list":
+                    print("Unmatchable error logs! run0 may be missing from the run_files dir")
                     pass
                 else:
                     raise
