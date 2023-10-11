@@ -284,6 +284,8 @@ def match_error_data(error_data, errors_by_string):
                 if str(e) == "'0' is not in list":
                     print("Unmatchable error logs! run0 may be missing from the run_files dir")
                     pass
+                elif e:
+                    pass
                 else:
                     raise
 
