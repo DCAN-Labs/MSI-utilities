@@ -28,6 +28,7 @@ from argparse import RawTextHelpFormatter
 # default dictionary of error strings to search for
 error_strings = {
     "undetermined_or_no": " ",
+    "potentially_successful": r"INFO: Summary: \d+ local files to upload, \d+ files to remote copy, \d+ remote files to delete",
     "time_limit": "DUE TO TIME LIMIT",
     "oom": "oom-kill",
     "assertion_error": "AssertionError",
@@ -68,6 +69,7 @@ def main():
     parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings, required=False,
                         help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:\n"
                             "'undetermined_or_no': ' ',\n"
+                            "'potentially_successful': 'INFO: Summary: {} local files to upload, {} files to remote copy, {} remote files to delete',\n"
                             "'time_limit': 'DUE TO TIME LIMIT',\n"
                             "'oom': 'oom-kill',\n"
                             "'assertion_error': 'AssertionError',\n"
@@ -153,11 +155,11 @@ def find_errors(error_strings, most_recent_err_files):
     for run_number, err_file in most_recent_err_files.items():
         with open(err_file, 'r') as err_file:
             content = err_file.read()
-            for error_string in error_strings_list[1:]:
+            for error_string in error_strings_list[2:]:
                 if error_string in content:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_with_error.add(run_number)
-            for error_string in error_strings_list[0]:
+            for error_string in error_strings_list[:2]:
                 if run_number not in run_numbers_with_error:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_without_error.add(run_number)
