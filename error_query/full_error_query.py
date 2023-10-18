@@ -28,7 +28,14 @@ from argparse import RawTextHelpFormatter
 # default dictionary of error strings to search for
 error_strings = {
     "undetermined_or_no": " ",
-    "potentially_successful": r"INFO: Summary: \d+ local files to upload, \d+ files to remote copy, \d+ remote files to delete",
+    "prefreesurfer":"Exception: error caught during stage: PreFreeSurfer",
+    "freesurfer": "Exception: error caught during stage: FreeSurfer",
+    "postfreesurfer": "Exception: error caught during stage: PostFreeSurfer",
+    "fmrivolume": "Exception: error caught during stage: FMRIVolume",
+    "fmrisurface": "Exception: error caught during stage: FMRISurface",
+    "dcanboldprocessing": "Exception: error caught during stage: DCANBOLDProcessing",
+    "executivesummary": "Exception: error caught during stage: ExecutiveSummary",
+    "customclean": "Exception: error caught during stage: CustomClean",  
     "time_limit": "DUE TO TIME LIMIT",
     "oom": "oom-kill",
     "assertion_error": "AssertionError",
@@ -155,11 +162,11 @@ def find_errors(error_strings, most_recent_err_files):
     for run_number, err_file in most_recent_err_files.items():
         with open(err_file, 'r') as err_file:
             content = err_file.read()
-            for error_string in error_strings_list[2:]:
+            for error_string in error_strings_list[1:]:
                 if error_string in content:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_with_error.add(run_number)
-            for error_string in error_strings_list[:2]:
+            for error_string in error_strings_list[:1]:
                 if run_number not in run_numbers_with_error:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_without_error.add(run_number)
