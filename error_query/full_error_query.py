@@ -166,6 +166,7 @@ def find_errors(error_strings, most_recent_err_files):
                 if error_string in content:
                     errors_by_string[error_string].append(run_number)
                     run_numbers_with_error.add(run_number)
+                    break
             for error_string in error_strings_list[:1]:
                 if run_number not in run_numbers_with_error:
                     errors_by_string[error_string].append(run_number)
