@@ -14,11 +14,13 @@
 #   6. return csvs for each error that contain the associated subject_id and session_id, and the path to the error log that contains the error, if desired
 
 # TODO:
+#   - provide a catch for error logs that are missing subject and session information
+#   - add no_sub_id_err_files to its own csv
 #   - test out ability to add in other error strings
 #   - test on a subset of BIDS conversion error logs
-#   - review/add in comments for functions
 #   - need to consolidate find_subject_session_ids function 
 #   - further edit exception in match_error_data function
+
 
 # import necessary modules
 import os
@@ -108,9 +110,9 @@ def main():
     run_numbers = get_run_numbers(args.output_logs_dir)
     # find the most recent .err file associated with each unique run number
     if args.sub_ids_csv == "":
-        most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
+        most_recent_err_files,no_sub_id_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
     else: 
-        most_recent_err_files = get_most_recent_err_files_from_id(args.output_logs_dir, args.sub_ids_csv)
+        most_recent_err_files,no_sub_id_err_files = get_most_recent_err_files_from_id(args.output_logs_dir, args.sub_ids_csv)
     # read each error file and find certain error strings, then match information with run number identifier
     errors_by_string, run_numbers_with_error, run_numbers_without_error = find_errors(args.error_strings, most_recent_err_files)
     # using run number identifier, find subject_id and session_id for each associated error file
@@ -143,20 +145,27 @@ def get_most_recent_err_files(output_logs_dir, run_numbers):
 # if using subject id list, find most recent err file
 def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
     most_recent_err_files = {}
+    no_sub_id_err_files = [] 
     err_files = glob.glob(os.path.join(output_logs_dir, f"*.err"))
     for err_file in err_files:
         with open(err_file, 'r') as file:
             file_content = file.read()
         with open(sub_ids_csv, 'r') as csv_file:
+            sub_id_found=False
             for line in csv_file:
-                    sub_id,ses_id = line.strip().split(",")
-                    sub_match = re.search(sub_id, file_content)
-                    ses_match = re.search(ses_id, file_content)
-                    if sub_match and ses_match:
-                        if sub_id not in most_recent_err_files or os.path.getctime(err_file) > os.path.getctime(most_recent_err_files[sub_id]):
-                            most_recent_err_files[sub_id] = err_file
+                sub_id,ses_id = line.strip().split(",")
+                sub_match = re.search(sub_id, file_content)
+                ses_match = re.search(ses_id, file_content)
+                if sub_match and ses_match:
+                    if sub_id not in most_recent_err_files or os.path.getctime(err_file) > os.path.getctime(most_recent_err_files[sub_id]):
+                        sub_id_found=True
+                        most_recent_err_files[sub_id] = err_file
+                        break
+            if not sub_id_found:
+                no_sub_id_err_files.append(err_file)
+
     
-    return most_recent_err_files
+    return most_recent_err_files, no_sub_id_err_files
 
 # read error files and look for specific error strings
 def find_errors(error_strings, most_recent_err_files):
@@ -169,6 +178,8 @@ def find_errors(error_strings, most_recent_err_files):
     for run_number, err_file in most_recent_err_files.items():
         with open(err_file, 'r') as err_file:
             content = err_file.read()
+            # hard coded to catch for undetermined errors 
+            # TODO: separate non error list and error string list
             for error_string in error_strings_list[1:]:
                 if error_string in content:
                     errors_by_string[error_string].append(run_number)
@@ -183,6 +194,7 @@ def find_errors(error_strings, most_recent_err_files):
 
 # find subject_id and session_id for each run number within the associated error file
 # TODO: for loop in code is being repeated, need to consolidate 
+# STEPS: make code within for loops its own function, call that new function within find_subject_session_ids
 def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_without_error, most_recent_err_files):
     error_data = {
         "Run_Number": [],
@@ -301,11 +313,11 @@ def match_error_data(error_data, errors_by_string):
                     matched_error_data[string].append(error_data_dict)
             # TODO: further edit this exception
             except ValueError as e:
-                if str(e) == "'0' is not in list":
-                    print("Unmatchable error logs! run0 may be missing from the run_files dir")
+                if "is not in list" in str(e):
+                    print("Unmatchable error logs! run file may be missing from the run_files dir")
                     pass
-                elif e:
-                    pass
+                #elif e:
+                #    pass
                 else:
                     raise
 
