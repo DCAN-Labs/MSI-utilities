@@ -3,19 +3,22 @@
 #       a. output_logs_dir is a path to the output_logs directory
 #       b. run_files_dir is a path to the run_files directory, used to find the associated sub/ses information for each unique run file (if necessary)
 #       c. output_path will be a path to a directory where the csvs will go
+#       d. sub_ids_csv is a path to a list of subject ids
+#       e. add_error_log_path is a boolean that will add a path to the most recent error log for each subject in the output
+#       f. error_strings allow for new strings to be added to a default dictionary of strings
 #   2. parse through the output_logs_dir and create a unique list of all the run numbers
 #   3. find the most recent .err file associated with each unique run number
-#   4. read each error file and find certain error strings, then match information with run number identifier 
-#   5. using run number identifier, find subject_id and session_id for each associated error file;
+#   4. read each error file and find certain error strings, then match information with run number (or sub_id, if using csv input) identifier 
+#   5. using identifier, find subject_id and session_id for each associated error file;
 #      if subject_id and session_id not found within the .err file, extract info from the associated run file in the run_files directory
-#   6. return csvs for each error that contain the associated subject_id and session_id, and optionally the path to the error log that contains the error
+#   6. return csvs for each error that contain the associated subject_id and session_id, and the path to the error log that contains the error, if desired
 
 # TODO:
-#   - test on processing directories
-#   - need to add in and test option to search by subject id OR run number
 #   - test out ability to add in other error strings
+#   - test on a subset of BIDS conversion error logs
 #   - review/add in comments for functions
 #   - need to consolidate find_subject_session_ids function 
+#   - further edit exception in match_error_data function
 
 # import necessary modules
 import os
@@ -52,7 +55,6 @@ error_strings = {
 
 def main():
     # set the input variables using argument parser
-    # TODO: need to test argument for sub_ids_csv
     parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.", formatter_class=RawTextHelpFormatter)
     parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", required=True,
                         help="Required. Path to the output_logs directory."
@@ -76,7 +78,14 @@ def main():
     parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings, required=False,
                         help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:\n"
                             "'undetermined_or_no': ' ',\n"
-                            "'potentially_successful': 'INFO: Summary: {} local files to upload, {} files to remote copy, {} remote files to delete',\n"
+                            "'prefreesurfer':'Exception: error caught during stage: PreFreeSurfer',\n"
+                            "'freesurfer': 'Exception: error caught during stage: FreeSurfer',\n"
+                            "'postfreesurfer': 'Exception: error caught during stage: PostFreeSurfer',\n"
+                            "'fmrivolume': 'Exception: error caught during stage: FMRIVolume',\n"
+                            "'fmrisurface': 'Exception: error caught during stage: FMRISurface',\n"
+                            "'dcanboldprocessing': 'Exception: error caught during stage: DCANBOLDProcessing',\n"
+                            "'executivesummary': 'Exception: error caught during stage: ExecutiveSummary',\n"
+                            "'customclean': 'Exception: error caught during stage: CustomClean',\n"  
                             "'time_limit': 'DUE TO TIME LIMIT',\n"
                             "'oom': 'oom-kill',\n"
                             "'assertion_error': 'AssertionError',\n"
@@ -98,8 +107,6 @@ def main():
     # parse through the output_logs_dir and create a unique list of all the run numbers
     run_numbers = get_run_numbers(args.output_logs_dir)
     # find the most recent .err file associated with each unique run number
-    #most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
-    # TODO: need to test option for using get_most_recent_err_files_from_id when csv is present
     if args.sub_ids_csv == "":
         most_recent_err_files = get_most_recent_err_files(args.output_logs_dir, run_numbers)
     else: 
@@ -124,7 +131,7 @@ def get_run_numbers(output_logs_dir):
                     run_numbers.add(run_number.group(1))
     return run_numbers
 
-# Find the most recent .err file for each unique run number
+# find the most recent .err file for each unique run number
 def get_most_recent_err_files(output_logs_dir, run_numbers):
     most_recent_err_files = {}
     for run_number in run_numbers:
@@ -133,7 +140,7 @@ def get_most_recent_err_files(output_logs_dir, run_numbers):
             most_recent_err_files[run_number] = max(err_files, key=os.path.getctime)
     return most_recent_err_files
 
-# TODO: from subject id list, find most recent err file !! need to test !!
+# if using subject id list, find most recent err file
 def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
     most_recent_err_files = {}
     err_files = glob.glob(os.path.join(output_logs_dir, f"*.err"))
@@ -151,7 +158,7 @@ def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
     
     return most_recent_err_files
 
-# Read error files and look for specific error strings
+# read error files and look for specific error strings
 def find_errors(error_strings, most_recent_err_files):
     error_strings_list = list(error_strings.values())
     
@@ -174,7 +181,8 @@ def find_errors(error_strings, most_recent_err_files):
     
     return errors_by_string, run_numbers_with_error, run_numbers_without_error
 
-# Find subject_id and session_id for each run number within the associated error file
+# find subject_id and session_id for each run number within the associated error file
+# TODO: for loop in code is being repeated, need to consolidate 
 def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_without_error, most_recent_err_files):
     error_data = {
         "Run_Number": [],
@@ -195,7 +203,7 @@ def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_
                 for key, value in zip(error_data.keys(), inputs):
                     error_data[key].append(value)
             elif not run_files_dir == "": 
-                # If subject_id and session_id not found, extract info from the associated run file in the run_files directory 
+                # if subject_id and session_id not found, extract info from the associated run file in the run_files directory 
                 run_file = os.path.join(run_files_dir, f"run{run_number}")
                 if os.path.exists(run_file):
                     with open(run_file, 'r') as run_file:
@@ -236,7 +244,7 @@ def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_
                 for key, value in zip(error_data.keys(), inputs):
                     error_data[key].append(value)
             elif not run_files_dir == "": 
-                # If subject_id and session_id not found, extract info from the associated run file in the run_files directory 
+                # if subject_id and session_id not found, extract info from the associated run file in the run_files directory 
                 run_file = os.path.join(run_files_dir, f"run{run_number}")
                 if os.path.exists(run_file):
                     with open(run_file, 'r') as run_file:
@@ -268,7 +276,7 @@ def find_subject_session_ids(run_files_dir, run_numbers_with_error, run_numbers_
     
     return error_data
 
-# Match error_data infor with errors_by_string info
+# match error_data info with errors_by_string info
 def match_error_data(error_data, errors_by_string):
     matched_error_data = {}
 
@@ -291,6 +299,7 @@ def match_error_data(error_data, errors_by_string):
                         'Session_ID': error_data['Session_IDs'][run_index]
                     } 
                     matched_error_data[string].append(error_data_dict)
+            # TODO: further edit this exception
             except ValueError as e:
                 if str(e) == "'0' is not in list":
                     print("Unmatchable error logs! run0 may be missing from the run_files dir")
@@ -303,49 +312,29 @@ def match_error_data(error_data, errors_by_string):
     return matched_error_data
 
 
-# Write CSVs for each error !! this is the last part i need to troubleshoot !!
+# write csvs for each error
 def match_and_print_errors(matched_error_data, error_strings, output_dir, add_error_log_path):
-    # Initialize an empty dictionary to store the matched errors.
     matched_errors = {}
 
-    # Iterate through the keys in matched_error_data.
-    # !!this for loop needs to be triaged!!
     for error_key in matched_error_data.keys():
-        # Iterate through the error_strings dictionary to find a match.
         for error_name, error_value in error_strings.items():
             if error_value in error_key:
-                # Append the error data to the matched_errors dictionary.
                 if error_name not in matched_errors.keys():
                     matched_errors[error_name] = matched_error_data[error_key]
 
-                    
-
-    # Iterate through the matched_errors and write to CSV files.
     for error_name, error_data_list in matched_errors.items():
-        # Define the CSV file name using the associated error name.
         csv_filename = os.path.join(output_dir, f"{error_name}_errors.csv")
 
         if not add_error_log_path:
                 error_data_list = [{key: value for key, value in error_data.items() if key != "Error_Log_Path"} for error_data in error_data_list]
 
-        # Write the data to the CSV file.
         with open(csv_filename, 'w', newline='') as csvfile:
             fieldnames = error_data_list[0].keys()
-            #fieldnames = list(fieldnames) + ["Number of subjects:"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-            
-            # Write the header row.
             writer.writeheader()
-
-            # Write the error data.
             for error_data in error_data_list:
-                writer.writerow(error_data)
-
-            #writer.writerow({"Number of subjects:": len(error_data_list)})    
-            
+                writer.writerow(error_data)            
         print(f"CSV file '{csv_filename}' created with {len(error_data_list)} entries.")
 
 if __name__ == "__main__":
     main()
-
-print("done")
