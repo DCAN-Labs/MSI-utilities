@@ -120,7 +120,7 @@ def main():
     # match the error data for each error string
     matched_error_data = match_error_data(error_data, errors_by_string)
     # print the identified information in a csv for each error
-    match_and_print_errors(matched_error_data, error_strings, args.output_dir, args.add_error_log_path)
+    match_and_print_errors(no_sub_id_err_files,matched_error_data, error_strings, args.output_dir, args.add_error_log_path)
 
 # create a unique list of run numbers from output_logs directory
 def get_run_numbers(output_logs_dir):
@@ -325,7 +325,7 @@ def match_error_data(error_data, errors_by_string):
 
 
 # write csvs for each error
-def match_and_print_errors(matched_error_data, error_strings, output_dir, add_error_log_path):
+def match_and_print_errors(no_sub_id_err_files,matched_error_data, error_strings, output_dir, add_error_log_path):
     matched_errors = {}
 
     for error_key in matched_error_data.keys():
@@ -347,6 +347,15 @@ def match_and_print_errors(matched_error_data, error_strings, output_dir, add_er
             for error_data in error_data_list:
                 writer.writerow(error_data)            
         print(f"CSV file '{csv_filename}' created with {len(error_data_list)} entries.")
+
+    no_sub_id_csv = os.path.join(output_dir, f"no_sub_id_errors.csv")
+    with open (no_sub_id_csv, 'w', newline='') as csvfile:
+        fieldnames = no_sub_id_err_files
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        for line in no_sub_id_err_files:
+            writer.writerow(line)
+    print(f"CSV file '{no_sub_id_csv}' created with {len(no_sub_id_err_files)} entries.")
 
 if __name__ == "__main__":
     main()
