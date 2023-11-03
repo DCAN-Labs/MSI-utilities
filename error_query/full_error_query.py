@@ -20,6 +20,7 @@
 #   - test on a subset of BIDS conversion error logs
 #   - need to consolidate find_subject_session_ids function 
 #   - further edit exception in match_error_data function
+#   - make sure either run files dir or subject list is a required input 
 
 
 # import necessary modules
@@ -350,11 +351,11 @@ def match_and_print_errors(no_sub_id_err_files,matched_error_data, error_strings
 
     no_sub_id_csv = os.path.join(output_dir, f"no_sub_id_errors.csv")
     with open (no_sub_id_csv, 'w', newline='') as csvfile:
-        fieldnames = no_sub_id_err_files
+        fieldnames = ['paths']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for line in no_sub_id_err_files:
-            writer.writerow(line)
+            writer.writerow({'paths': line})
     print(f"CSV file '{no_sub_id_csv}' created with {len(no_sub_id_err_files)} entries.")
 
 if __name__ == "__main__":
