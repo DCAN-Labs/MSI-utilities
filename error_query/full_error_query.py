@@ -158,12 +158,12 @@ def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
                 sub_match = re.search(sub_id, file_content)
                 ses_match = re.search(ses_id, file_content)
                 if sub_match and ses_match:
+                    sub_id_found=True
                     if sub_id not in most_recent_err_files or os.path.getctime(err_file) > os.path.getctime(most_recent_err_files[sub_id]):
-                        sub_id_found=True
                         most_recent_err_files[sub_id] = err_file
                         break
-            if not sub_id_found:
-                no_sub_id_err_files.append(err_file)
+                    if not sub_id_found:
+                        no_sub_id_err_files.append(err_file)
 
     
     return most_recent_err_files, no_sub_id_err_files
