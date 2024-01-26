@@ -25,7 +25,9 @@
 
 # import necessary modules
 import os
-import glob
+from glob import glob
+import pandas as pd
+import pdb
 import re
 import csv
 import argparse
@@ -58,6 +60,8 @@ error_strings = {
 
 def main():
     # set the input variables using argument parser
+    # change arguments to dashes from underscores
+    # store true means default will always be False 
     parser = argparse.ArgumentParser(description="Review error logs and extract relevant error information from each .err file.", formatter_class=RawTextHelpFormatter)
     parser.add_argument("-l", "--output_logs_dir", dest="output_logs_dir", required=True,
                         help="Required. Path to the output_logs directory."
@@ -78,6 +82,8 @@ def main():
     parser.add_argument("-p", "--add_error_log_path", dest="add_error_log_path", action="store_true", default = False, required=False,
                         help="Optional. Include the 'Error_Log_Path' in the CSVs for each .err file."
                         )
+    #parser.add_argument("-remove", "--remove_old_log_files", dest="remove_old_log_files", action="store_true", default = False, required=False,
+    #                    help="Optional. Remove old log files that may no longer be necessary.")
     parser.add_argument("-e", "--error_strings", dest="error_strings", nargs="+", default=error_strings, required=False,
                         help="Optional arg to add in different error strings to dictionary of strings to search for. Current default dictionary:\n"
                             "'undetermined_or_no': ' ',\n"
@@ -138,16 +144,85 @@ def get_run_numbers(output_logs_dir):
 def get_most_recent_err_files(output_logs_dir, run_numbers):
     most_recent_err_files = {}
     for run_number in run_numbers:
-        err_files = glob.glob(os.path.join(output_logs_dir, f"*_{run_number}.err"))
+        err_files = glob(os.path.join(output_logs_dir, f"*_{run_number}.err"))
         if err_files:
             most_recent_err_files[run_number] = max(err_files, key=os.path.getctime)
     return most_recent_err_files
 
+
 # if using subject id list, find most recent err file
 def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
     most_recent_err_files = {}
+
+    # Get all error file paths
+    err_files_df = pd.DataFrame({
+        "err_file_path": glob(os.path.join(output_logs_dir, f"*.err"))
+    })
+
+    # Patterns to find subject and session IDs
+    find_subj = re.compile(r"(sub-NDARINV.{8})")
+    find_ses = re.compile(r"(ses-.*Arm[0-9]{1})")
+
+    # Get each error file's subject and session ID
+    err_files_df[["subject", "session"]] = err_files_df["err_file_path"].apply(
+        lambda fpath: get_sub_and_ses_IDs(fpath, find_subj, find_ses)
+    ).values.tolist()
+
+    # Check how recently each error file was [created? updated?]
+    err_files_df["recency"] = err_files_df["err_file_path"].apply(os.path.getctime)
+
+    with open(sub_ids_csv, 'r') as csv_file:
+        for line in csv_file: 
+            # Get subject and session from .csv file
+            sub_id, ses_id = line.strip().split(",")
+
+            # Get all error files for that subject and session
+            sub_ses_df = err_files_df[(err_files_df["subject"] == f"sub-{sub_id}") &
+                                      (err_files_df["session"] == f"ses-{ses_id}")]
+            
+            if not sub_ses_df.empty:  # Get the most recent error file and delete the rest
+                is_most_recent = (sub_ses_df["recency"] == sub_ses_df["recency"].max())
+                most_recent_row = sub_ses_df[is_most_recent].iloc[0]
+                most_recent_err_files[most_recent_row.get("subject")
+                                      ] = most_recent_row.get("err_file_path")
+                sub_ses_df[~is_most_recent]["err_file_path"].apply(remove_err_and_log_files)
+
+    # Get all error files that don't include a subject ID
+    no_sub_id_err_files = err_files_df[err_files_df["subject"].isna()
+                                       ]["err_file_path"].values.tolist()
+    
+    return most_recent_err_files, no_sub_id_err_files
+
+
+def get_sub_and_ses_IDs(err_file_path: str, find_subj, find_ses):
+    # Get subject and session IDs from the content of an error file, and if
+    # one is missing, return that one as None instead
+    with open(err_file_path, 'r') as file:
+        file_content = file.read()
+    return [get_sub_or_ses_ID_in(find_subj, file_content),
+            get_sub_or_ses_ID_in(find_ses, file_content)]
+
+
+def get_sub_or_ses_ID_in(pattern, str_to_find_ID_in):
+    # Get the subject- or session-ID from a string by using the Regex pattern
+    matched_ID = re.search(pattern, str_to_find_ID_in)
+    if matched_ID:
+        matched_ID = matched_ID.group()
+    return matched_ID
+
+
+def remove_err_and_log_files(err_file_path):
+    for each_log_file in (err_file_path, err_file_path.replace(".err", ".out")):
+        print(each_log_file)
+        if os.path.exists(each_log_file):
+            os.remove(each_log_file)
+
+
+# if using subject id list, find most recent err file
+def get_most_recent_err_files_from_id_old(output_logs_dir, sub_ids_csv):
+    most_recent_err_files = {}
     no_sub_id_err_files = [] 
-    err_files = glob.glob(os.path.join(output_logs_dir, f"*.err"))
+    err_files = glob(os.path.join(output_logs_dir, f"*.err"))
     for err_file in err_files:
         with open(err_file, 'r') as file:
             file_content = file.read()
@@ -161,6 +236,14 @@ def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
                     sub_id_found=True
                     if sub_id not in most_recent_err_files or os.path.getctime(err_file) > os.path.getctime(most_recent_err_files[sub_id]):
                         most_recent_err_files[sub_id] = err_file
+                        #err_files is all of the err_files instead of subject specific
+                        err_files.remove(most_recent_err_files[sub_id]) 
+                        for to_delete in err_files:
+                            if to_delete:
+                                for each_log_file in (to_delete, to_delete.replace(".err", ".out")):
+                                    print(each_log_file)
+                                    if os.path.exists(each_log_file):
+                                        os.remove(each_log_file)
                         break
             if not sub_id_found:
                 no_sub_id_err_files.append(err_file)
