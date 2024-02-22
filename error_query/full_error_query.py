@@ -152,8 +152,6 @@ def get_most_recent_err_files(output_logs_dir, run_numbers):
 
 # if using subject id list, find most recent err file
 def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
-    most_recent_err_files = {}
-
     # Get all error file paths
     err_files_df = pd.DataFrame({
         "err_file_path": glob(os.path.join(output_logs_dir, f"*.err"))
@@ -164,34 +162,68 @@ def get_most_recent_err_files_from_id(output_logs_dir, sub_ids_csv):
     find_ses = re.compile(r"(ses-.*Arm[0-9]{1})")
 
     # Get each error file's subject and session ID
-    err_files_df[["subject", "session"]] = err_files_df["err_file_path"].apply(
+    COLS_ID = ["subject", "session"]
+    err_files_df[COLS_ID] = err_files_df["err_file_path"].apply(
         lambda fpath: get_sub_and_ses_IDs(fpath, find_subj, find_ses)
     ).values.tolist()
 
     # Check how recently each error file was [created? updated?]
     err_files_df["recency"] = err_files_df["err_file_path"].apply(os.path.getctime)
 
+    most_recent_err_files = remove_err_files_and_get_most_recent_v1(
+        sub_ids_csv, err_files_df, COLS_ID
+    )
+    # most_recent_err_files = remove_err_files_and_get_most_recent_v2(sub_ids_csv, err_files_df)
+
+    # Get all error files that don't include a subject ID
+    no_sub_id_err_files = err_files_df[err_files_df[COLS_ID[0]].isna()
+                                       ]["err_file_path"].values.tolist()
+    
+    return most_recent_err_files, no_sub_id_err_files
+
+
+def remove_err_files_and_get_most_recent_v1(sub_ids_csv, err_files_df, COLS_ID):
+    most_recent_err_files = dict()
+    col_sub, col_ses = COLS_ID
     with open(sub_ids_csv, 'r') as csv_file:
         for line in csv_file: 
             # Get subject and session from .csv file
             sub_id, ses_id = line.strip().split(",")
 
             # Get all error files for that subject and session
-            sub_ses_df = err_files_df[(err_files_df["subject"] == f"sub-{sub_id}") &
-                                      (err_files_df["session"] == f"ses-{ses_id}")]
+            sub_ses_df = err_files_df[(err_files_df[col_sub] == f"sub-{sub_id}") &
+                                      (err_files_df[col_ses] == f"ses-{ses_id}")]
             
             if not sub_ses_df.empty:  # Get the most recent error file and delete the rest
                 is_most_recent = (sub_ses_df["recency"] == sub_ses_df["recency"].max())
                 most_recent_row = sub_ses_df[is_most_recent].iloc[0]
-                most_recent_err_files[most_recent_row.get("subject")
+                most_recent_err_files[most_recent_row.get(col_sub)
                                       ] = most_recent_row.get("err_file_path")
                 sub_ses_df[~is_most_recent]["err_file_path"].apply(remove_err_and_log_files)
+    return most_recent_err_files
 
-    # Get all error files that don't include a subject ID
-    no_sub_id_err_files = err_files_df[err_files_df["subject"].isna()
-                                       ]["err_file_path"].values.tolist()
-    
-    return most_recent_err_files, no_sub_id_err_files
+
+def remove_err_files_and_get_most_recent_v2(sub_ids_csv, err_files_df, COLS_ID=None):
+    csv_df = pd.read_csv(sub_ids_csv)
+    if not COLS_ID:
+        COLS_ID = csv_df.columns.values.tolist()
+    for col_name in COLS_ID:
+        csv_df[col_name] = f"{col_name[:3]}-" + csv_df[col_name]
+    intersection = err_files_df.merge(csv_df, how="inner", on=COLS_ID)
+    return intersection.groupby(COLS_ID).apply(
+        get_most_recent_err_file_and_remove_others
+    ).values.tolist()
+
+
+def get_most_recent_err_file_and_remove_others(sub_ses_df: pd.DataFrame) -> str:
+    # Get the most recent error file and delete the rest
+    most_recent_err_file = None
+    if not sub_ses_df.empty:  
+        is_most_recent = (sub_ses_df["recency"] == sub_ses_df["recency"].max())
+        most_recent_row = sub_ses_df[is_most_recent].iloc[0]
+        sub_ses_df[~is_most_recent]["err_file_path"].apply(remove_err_and_log_files)
+        most_recent_err_file = most_recent_row.get("err_file_path")
+    return most_recent_err_file
 
 
 def get_sub_and_ses_IDs(err_file_path: str, find_subj, find_ses):

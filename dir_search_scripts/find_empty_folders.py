@@ -1,12 +1,14 @@
 """
 Author: rae McCollum
 Created: 13 Nov 23
-Last Modified: 4 Dec 23 by rae
-Purpose: Searches through a BIDS dir (originally used on the ngdr) to look for an empty/non-existent folder. 
+Last Modified: 13 Dec 23 by rae
+Purpose: Searches through a BIDS dir (originally used on the ngdr) to look for an empty/non-existent folder or files. 
 """
 import os
+import csv
 import boto3
 import argparse
+from glob import glob
 
 def _cli():
     """
@@ -29,6 +31,7 @@ def _cli():
         '--host', default= 'https://s3.msi.umn.edu', type=str,
         help='s3 host url, defaults to s3.msi.umn.edu for MSI users'
     )
+    ## TODO: Parse a config file for secret and access keys instead of providing via command line 
     parser.add_argument(
         '--access_key', default= "None",
         help='s3 access key, needed to access s3 bucket. If using MSI, run s3info to find'
@@ -36,6 +39,10 @@ def _cli():
     parser.add_argument(
         '--secret_key', default = "None",
         help='s3 secret key, needed to access s3 bucket. If using MSI, run s3info to find'
+    )
+    parser.add_argument(
+        '--sub_list',
+        help='Path to a file with the list of subjects in the s3 bucket with an expected format of "sub-ID" with one subject per line. Must be a txt or csv file'
     )
 
     group = parser.add_mutually_exclusive_group(required=True)
@@ -46,45 +53,43 @@ def _cli():
     )
     group.add_argument(
         '--file', action="store_true",
-        help='Specify if searching for missing files'
+        help='Specify if searching for missing files' ## relative path inside session folder (anat/fmap/func/dwi, or derivatives, etc)
     )
 
     return vars(parser.parse_args())
 
+def grab_sub_dirs(input_dir):
+    # Returns list of top level subject directories in input_dir
+    sub_dirs = []
+    for dir in os.listdir(input_dir): ## change to be scandir (can check below checks quicker)
+        if dir.startswith("sub-") and os.path.isdir(os.path.join(input_dir, dir)):
+            sub_dirs.append(dir)
+    return dir
 
-def search_empty_tier1_folders(input_dir, output_file, search_term):
-    with open(output_file, 'w') as output:
-        # Iterate through top-level "sub-" directories
-        for sub_dir in os.listdir(input_dir):
-            if sub_dir.startswith("sub-") and os.path.isdir(os.path.join(input_dir, sub_dir)):
-                # Iterate through each session subdirectory
-                for session_dir in os.listdir(os.path.join(input_dir, sub_dir)):
-                    session_path = os.path.join(input_dir, sub_dir, session_dir)
+def check_for_ses(sub_dir):
+    # Returns true if there are session folders in a subject directory 
+    return bool(glob(os.path.join(sub_dir, "ses-*")))
 
-                    # Check if it's a directory and has the searched for subdirectory
-                    if os.path.isdir(session_path):
-                        func_path = os.path.join(session_path, search_term) 
+def search_tier1(input_dir, output_file, search_file):
+    sub_dirs = grab_sub_dirs(input_dir)
+    missing_info = [] 
+    # Iterate through top-level "sub-" directories
+    for sub in sub_dirs:
+        sub_dir = os.path.join(input_dir, sub)
+        ses_exist = check_for_ses(sub_dir)
+        if ses_exist:
+            for session_dir in os.listdir(sub_dir):
+                file_path = os.path.join(input_dir, sub, session_dir, search_file)
+                if not os.path.exists(file_path):
+                    missing_info.append(f"{sub},{session_dir}")
+        elif not ses_exist:
+            file_path = os.path.join(input_dir, sub, search_file)
+            if not os.path.exists(file_path):
+                missing_info.append(sub)
+    with open(output_file, 'w') as output: 
+        output.write("\n".join(missing_info))
 
-                        if not os.path.exists(func_path) or not os.listdir(func_path):
-                            output.write(f"Subject: {sub_dir}, Session: {session_dir}\n")
-
-def search_tier1_files(input_dir, output_file, search_file):
-    with open(output_file, 'w') as output:
-        # Iterate through top-level "sub-" directories
-        for sub_dir in os.listdir(input_dir):
-            if sub_dir.startswith("sub-") and os.path.isdir(os.path.join(input_dir, sub_dir)):
-                # Iterate through session subdirectories
-                for session_dir in os.listdir(os.path.join(input_dir, sub_dir)):
-                    # Check if it's a directory and has a "func" subdirectory
-                    if os.path.isdir(session_dir) and os.path.isdir(os.path.join(session_dir,"fmap")):
-                        print("Search for file")## SPECIFY HERE WHAT EMPTY FOLDER YOU'RE LOOKING FOR
-                        func_path = [1,2,3]
-                        func_path2 = [1,2,3]
-
-                        if len(func_path)==0 and len(func_path2) == 0:
-                            output.write(f"Subject: {sub_dir}, Session: {session_dir}\n")
-
-def search_empty_s3_folders(input_directory, output_file, search_term, s3):
+def search_empty_s3_folders(input_directory, output_file, search_term, s3): ## Hasn't been tested, unsure of functionality
     print("Search for s3 dir")
     with open(output_file, 'w') as output:
         bucket = s3.Bucket(input_directory)
@@ -95,21 +100,45 @@ def search_empty_s3_folders(input_directory, output_file, search_term, s3):
         else:
             print("dir doesn't exist")
 
-def search_s3_files(input_directory, output_file, search_term, s3):
-    print("Search for s3 files")
-    with open(output_file, 'w') as output:
-        try:
-            s3.head_object(Bucket=input_directory, Key=search_term)
-            print("This file is not missing")
-        except:
-            print("This file is missing")
+def search_s3_files(input_directory, search_term, s3, subject): ## Still developing, works when given a subject list
+    print(f"Search s3 for the file for subject: {subject}")
+
+    raw_bucket_name = input_directory.split('/')[2] ## Maybe figure out a better way to do this
+    objects = s3.list_objects(Bucket=raw_bucket_name, Prefix=subject)
+    contents = objects["Contents"]
+    found_term = False
+    for obj in contents:
+        key = obj["Key"]
+        if search_term in key:
+            found_term = True
+            break
+    return found_term
+
+def output_missing_subjects(output_file, subject):
+    # Write subject with missing term to file 
+    with open(output_file, 'a+') as output:
+        output.write(subject)
+
+def get_subjects(subject_list_file):
+    # Extract subject IDs from text file
+    if subject_list_file[-3:] == "txt":
+        with open(subject_list_file, 'r') as file:
+            subject_ids = [line.strip() for line in file.readlines()]
+    # Extract subject IDs from csv  
+    elif subject_list_file[-3:] == "csv":
+        with open(subject_list_file, 'r') as file:
+            reader = csv.reader(file)
+            subject_ids = [row[0].strip() for row in reader]
+
+    return subject_ids
 
 def create_s3_client(host, access_key, secret_key):
+    # Create s3 client to access bucket 
     session = boto3.Session()
     client = session.client('s3', endpoint_url=host, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     return client
 
-def create_s3_bucket(host, access_key, secret_key):
+def create_s3_bucket(host, access_key, secret_key): ## Same as above, I think this will need to be different for bucket searching function
     session = boto3.Session()
     client = session.client('s3', endpoint_url=host, aws_access_key_id=access_key, aws_secret_access_key=secret_key)
     return client
@@ -122,6 +151,7 @@ if __name__ == '__main__':
     host = cli_args["host"]
     access_key = cli_args["access_key"]
     secret_key = cli_args["secret_key"]
+    sub_list = cli_args["sub_list"]
 
     if not cli_args["folder"] and not cli_args["file"]:
         raise ValueError("You need to specify if you're searching for a folder or file with the --folder or --file flag")
@@ -134,9 +164,10 @@ if __name__ == '__main__':
             if cli_args["folder"]:
                 search_empty_s3_folders(input_directory, output_txt_file, search_term, s3)
             elif cli_args["file"]:
-                search_s3_files(input_directory, output_txt_file, search_term, s3)
+                subjects = get_subjects(sub_list)
+                for sub in subjects:
+                    found_term = search_s3_files(input_directory, search_term, s3, sub)
+                    if not found_term:
+                        output_missing_subjects(output_txt_file, sub)
     else:
-        if cli_args["folder"]:
-            search_empty_tier1_folders(input_directory, output_txt_file, search_term)
-        elif cli_args["file"]:
-            search_tier1_files(input_directory, output_txt_file, search_term)
+        search_tier1(input_directory, output_txt_file, search_term)
