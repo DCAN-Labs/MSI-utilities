@@ -33,11 +33,13 @@ update_yamls.sh
 	
 ## get_max_fairshare
 
-Of the shares in (feczk001, miran045, faird, rando149, smnelson) of which the user is a member, echo the share with the greatest fairshare value. Optionally, use -l or --list to specify a (comma-separated) list of shares to search instead of the default.
+Of the shares in (feczk001, miran045, faird, rando149, smnelson) of which the user is a member, echo the share with the greatest FairShare value. Submitting jobs using the share with highest FairShare minimizes job queueing times and helps balance fairshare usage across all shares. Optionally, use -l or --list to specify a (comma-separated) list of shares to search instead of the default.
 	
 get_max_fairshare.sh
 
 	Command: ./get_max_fairshare.sh [ -l <list of shares> ]
+
+ More FairShare info: https://dcan-labs-informational-guide.readthedocs.io/en/latest/fairshare
 	
 ## misc_bash_utilities_jacob
 
