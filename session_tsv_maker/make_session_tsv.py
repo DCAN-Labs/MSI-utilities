@@ -3,7 +3,7 @@
 import pandas as pd
 import os
 
-BIDS_dir='/home/feczk001/shared/projects/segpipeline_testing/input/'
+BIDS_dir="/path/to/input/"
 
 #open participants.tsv
 
