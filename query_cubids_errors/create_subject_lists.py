@@ -1,5 +1,8 @@
 """
-Creates subject lists of cubids errors 
+Author: rae McCollum
+Created: 25 Nov 23 
+Purpose: Creates subject lists of cubids errors from the error text files created by separate-errors-into-csvs.py
+Last Modified: 
 """
 import os
 
