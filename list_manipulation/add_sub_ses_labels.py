@@ -24,12 +24,13 @@ def _cli():
     )
     parser.add_argument(
         '--function', type = valid_operation, dest="func",
-        help='What function to run. Can add sub- and ses- prefixes, add/remove sub- prefix, or add/remove session' 
-        'Input must be one of the following: add-both-labels, add-sub, remove-sub, add-ses, remove-ses'
+        help=('What function to run. Can add sub- and ses- prefixes, add/remove sub- prefix, or add/remove session. ' 
+        'Input must be one of the following: [add-both-labels, add-sub, remove-sub, add-ses, remove-ses] '
+        'If removing/adding a session, specify which session label with the --session flag')
     )
     parser.add_argument(
         '--session', dest="ses",
-        help='Session label to add for add-ses function. Can either be with or without ses- label depending on what you want to add.'
+        help='Session label to add/remove. Can either be with or without ses- label.'
     )
     return vars(parser.parse_args())
 
@@ -126,10 +127,10 @@ def make_func_dict():
 
 def main():
     cli_args = _cli()
-    input_file = cli_args.file
-    output_file = cli_args.output
-    option = cli_args.func
-    session = cli_args.ses
+    input_file = cli_args["file"]
+    output_file = cli_args["output"]
+    option = cli_args["func"]
+    session = cli_args["ses"]
     choices = make_func_dict()
     if "ses" in option:
         choices[option](input_file, output_file, session)
