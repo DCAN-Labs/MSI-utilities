@@ -1,5 +1,7 @@
 # MSI-utilities
 
+:exclamation: This repository is under construction. :exclamation:
+
 ## dir_search_scripts:
 
 These scripts look through BIDS directories to find missing folders/files either on s3 or tier1
