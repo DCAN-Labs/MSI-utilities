@@ -19,12 +19,12 @@ import pandas as pd
 # Local custom imports
 from utilities import (ensure_ID_cols_prefixed, get_run_numbers_from,
                        get_sub_or_ses_ID_in, get_sub_ses_info_from_run_file,
-                       INT_FMT, is_nothing, LazyDict, remove_err_and_out_files,
+                       is_nothing, LazyDict, remove_err_and_out_files,
                        stringify_num_ser, stringify_whole_num_or_empty)
 
 # TODO:
-#   - add ValueError message back in for sub ses without run file
-#   - make sure either run files dir or subject list is a required input 
+#   - add ValueError message back in for sub ses without run file?
+#   - make sure either run files dir or subject list is a required input?
 
 
 class DatasetErrFiles:
@@ -83,7 +83,7 @@ class DatasetErrFiles:
         # Get all error file paths without a subject ID to identify them
         self.no_sub_id = self.get_df_without_subj_ID()
 
-        # If subject_id and session_id not found within the .err file, then 
+        # If subject ID and session ID not found within the .err file, then 
         # extract info from the associated run file in the run_files directory
         if self.dir.get("run"):
             self.no_sub_id = self.no_sub_id.apply(
@@ -102,7 +102,7 @@ class DatasetErrFiles:
             df[self.COLS.dataset] = self.dataset_id
         return df
 
-    # if using subject id list, find most recent err file
+
     def add_detail_cols_to(self, df: pd.DataFrame) -> pd.DataFrame:
         """
         :param df: pd.DataFrame with a file path column (self.COLS.fpath)
@@ -241,8 +241,9 @@ class DatasetErrFiles:
         """
         Get path to every error file in the output_logs_dir
         :param logs_dir: String, valid path to existing directory containing
-                         output log files ()
-        :return: pd.DataFrame, _description_
+                         output log files
+        :return: pd.DataFrame with one column containing output error/log 
+                 file paths
         """
         return pd.DataFrame({self.COLS.fpath:
                              self.list_err_files_in(logs_dir)})
@@ -286,14 +287,16 @@ class DatasetErrFiles:
         self.save_if_any(self.get_df_without_subj_ID(), "no_sub_id_errors"
                          ".csv", self.COLS.run, self.COLS.fpath)
         
-        # Save .csv that maps error types to run numbers affected
+        # Save .tsv that maps error types to run numbers affected
         runs_df = self.df.groupby([self.COLS.err]
                                   )[self.COLS.run].agg(stringify_num_ser)
         self.save_if_any(self.add_dataset_ID_to(runs_df), "run_numbers.tsv",
                          self.COLS.run, index=True, sep="\t")
                 
         # Save .csv with all err types, putting the err file path column last
-        self.save_if_any(self.df, "all_err_types.csv", *self.COLS.save[:-1],
+        all_fname = (f"{self.dataset_id}-all.csv" if self.dataset_id
+                     else "all_err_types.csv")
+        self.save_if_any(self.df, all_fname, *self.COLS.save[:-1],
                          self.COLS.err, self.COLS.save[-1])
     
 
@@ -307,18 +310,24 @@ class DatasetErrFiles:
             
 
     def save_if_any(self, df: pd.DataFrame, csv_fname: str,
-                    *save_COLS: str, **save_args: Any) -> None: 
+                    *save_COLS: str, **save_kwargs: Any) -> None: 
         """
-        Save all self.df subj-ses rows with (a) certain error(s) to a .csv file
+        Save all self.df subj-ses rows with (a) certain error(s) to a
+        .csv or .tsv spreadsheet file
         :param df: pd.DataFrame to export into a new .csv file
         :param csv_fname: String naming the .csv file to save
         :param save_COLS: List[str] of names of columns to save in output file
         :param save_args: Dict of parameters to pass into pd.DataFrame.to_csv
         """
         if not df.empty:
-            # if self.COLS.run in save_COLS:
-            save_args["float_format"] = INT_FMT
-            save_args.setdefault("index", False)
-            csv_fpath = os.path.join(self.dir.out, csv_fname)
-            df.to_csv(csv_fpath, columns=save_COLS, **save_args)
-            print(f"Saved {df.shape[0]} entries to {csv_fpath}")
+            # Format run numbers without decimals when saving them as string
+            save_kwargs["float_format"] = "%.0f"
+
+            # Exclude index from output file unless specified otherwise
+            save_kwargs.setdefault("index", False)
+
+            # Save the output file and print a message saying so
+            out_file_path = os.path.join(self.dir.out, csv_fname)
+            df.to_csv(out_file_path, columns=save_COLS, **save_kwargs)
+            print(f"Saved {df.shape[0]} entries to {out_file_path}")
+            

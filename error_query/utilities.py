@@ -19,9 +19,6 @@ from typing import Any, Callable, Hashable, Iterable, List, Optional
 import numpy as np
 import pandas as pd
 
-# Constant: Format a float without decimals when converting it to a string
-INT_FMT = "%.0f"
-
 
 def ensure_ID_cols_prefixed(a_df: pd.DataFrame, cols_ID: Iterable[str]
                             ) -> pd.DataFrame:
