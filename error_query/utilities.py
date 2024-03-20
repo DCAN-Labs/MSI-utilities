@@ -3,7 +3,7 @@
 """
 Greg Conan: gregmconan@gmail.com
 Created 2024-02-21
-Updated 2024-02-23
+Updated 2024-03-20
 """
 # Standard imports
 import argparse
@@ -19,9 +19,8 @@ from typing import Any, Callable, Hashable, Iterable, List, Optional
 import numpy as np
 import pandas as pd
 
-
-def as_int_or_empty_str(a_number: float) -> str:
-    return f"{a_number:.0f}" if a_number else ""
+# Constant: Format a float without decimals when converting it to a string
+INT_FMT = "%.0f"
 
 
 def ensure_ID_cols_prefixed(a_df: pd.DataFrame, cols_ID: Iterable[str]
@@ -94,6 +93,7 @@ class LazyDict(dict):
        code does not need to be valid if self already has the key.
     Extended version of LazyButHonestDict from stackoverflow.com/q/17532929
     Does not change core functionality of the Python dict type.
+    TODO: Should this subclass dict or collections.UserDict?
     TODO: Right now, trying to overwrite a LazyDict method or a core dict
           attribute will silently fail: the new value can be accessed through
           dict methods but not as an attribute. Maybe worth fixing eventually?
@@ -114,8 +114,8 @@ class LazyDict(dict):
         """
         self.__setitem__(__name, __value)
 
-    def lazyget(self, key: Hashable,
-                get_if_absent:Optional[Callable] = lambda: None) -> Any:
+    def lazyget(self, key: Hashable, get_if_absent:
+                Optional[Callable] = lambda: None) -> Any:
         """
         LazyButHonestDict.lazyget from stackoverflow.com/q/17532929
         :param key: Object (hashable) to use as a dict key
@@ -124,8 +124,8 @@ class LazyDict(dict):
         """
         return self[key] if self.get(key) is not None else get_if_absent()
     
-    def lazysetdefault(self, key: Hashable,
-                       set_if_absent:Optional[Callable] = lambda: None) -> Any:
+    def lazysetdefault(self, key: Hashable, set_if_absent:
+                       Optional[Callable] = lambda: None) -> Any:
         """
         LazyButHonestDict.lazysetdefault from stackoverflow.com/q/17532929 
         :param key: Object (hashable) to use as a dict key
@@ -158,6 +158,32 @@ def remove_err_and_out_files(err_file_path: str) -> None:
         if os.path.exists(each_log_file):
             print(f"Deleting {each_log_file}")
             os.remove(each_log_file)
+
+
+def stringify_num_ser(nums: pd.Series) -> str:
+    """ 
+    :param nums: pd.Series of whole number floats
+    :return: String of all items in a_list, single-quoted and comma-separated
+    """
+    # return nums.sort_values().to_string(float_format="%.0f", index=False, header=False).strip().replace('\n',',')
+    return ",".join(nums.sort_values().astype(int).astype(str))
+
+
+def stringify_whole_num_or_empty(a_number: float) -> str:
+    return f"{a_number:.0f}" if a_number else ""
+
+
+def stringify_list(a_list: list) -> str:
+    """ 
+    :param a_list: List (any)
+    :return: String of all items in a_list, single-quoted and comma-separated
+    """
+    result = ""       
+    if a_list and isinstance(a_list, list):
+        list_with_str_els = [str(el) for el in a_list]
+        result = "'{}'".format("','".join(list_with_str_els) if len(a_list)
+                               > 1 else list_with_str_els[0])
+    return result
 
 
 def valid_readable_json_content(path: Any) -> dict:

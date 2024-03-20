@@ -2,7 +2,7 @@
 
 """
 Created by Jacob Lundquist lundq163@umn.edu
-Updated by Greg Conan gregmconan@gmail.com on 2024-02-23 
+Updated by Greg Conan gregmconan@gmail.com on 2024-03-20
 """
 # Standard imports
 import argparse
@@ -12,7 +12,7 @@ import pdb
 import sys
                     
 # Local custom imports
-from AllErrFiles import AllErrFiles
+from DatasetErrFiles import DatasetErrFiles
 from utilities import (valid_output_dir, valid_readable_dir,
                        valid_readable_file, valid_readable_json_content)
 
@@ -21,7 +21,7 @@ def main():
     cli_args = _cli()
 
     # parse through the output_logs_dir and get all error files' info
-    err_files = AllErrFiles(**cli_args)
+    err_files = DatasetErrFiles(**cli_args)
 
     # print the identified information in a csv for each error
     err_files.save_and_print_all_errs()
@@ -49,7 +49,7 @@ def _cli():
                         help="Required. Path to the output_logs directory.")
     
     # Optional arguments
-    parser.add_argument("-d", "-del", "--delete", "--delete-logs",
+    parser.add_argument("-del", "--delete", "--delete-logs",
                         dest="delete", action="store_true",
                         help="Optional. Include this flag to remove old "
                              ".err and .out files found that may no longer "
@@ -65,6 +65,9 @@ def _cli():
                              f"from '{DEFAULT_ERR_STR_JSON}'. If no readable "
                              ".JSON file exists at that path, then you need "
                              "to include a different one as this argument.")
+    parser.add_argument("-id", "-ID", "--dataset-id",
+                        help="Identification naming the dataset that error " 
+                             "querying is being run on.")
     parser.add_argument("-o", "-out", "--output", "--output-dir",
                         dest="output_dir", type=valid_output_dir,
                         default=DEFAULT_OUT_DIR,
@@ -90,11 +93,11 @@ def _cli():
                              "information being matched to the .err log.\n"
                              "Suggested usage is to only use this flag after "
                              "the first round of processing.")
-    parser.add_argument("-s", "-sub", "-ID", "--subjects", "--sub-ids-csv",
+    parser.add_argument("-s", "-sub", "--subjects", "--sub-ids-csv",
                         dest="sub_IDs_CSV", type=valid_readable_file,
                         help="Optional. Path to existing .csv file which "
                              "contains specific subject_id,session_id pairs "
-                             " to search for in each log file.")
+                             "to search for in each log file.")
     return vars(parser.parse_args())
     
 
