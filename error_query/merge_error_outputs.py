@@ -2,42 +2,39 @@ import os
 import pandas as pd
 import sys
 from collections import defaultdict
+#from datetime import datetime
 
 # Check if the directories path is provided as an argument
-if len(sys.argv) < 3:
+if len(sys.argv) < 2:
     print("Usage: python merge_error_outputs.py /path/to/error/query/results/directory /path/to/merged/errors/output_file.csv")
     sys.exit(1)
 
 # Get the directories path from the command-line argument
-error_directory = sys.argv[1]
-output_file = sys.argv[2]
+error_directories = sys.argv[1:len(sys.argv)-1]
+output_file = sys.argv[len(sys.argv)]
 output_data = []
 
 # Initialize a dictionary to store DataFrames for each error type
-error_type_dfs = defaultdict(pd.DataFrame)
+total_errors_dfs = defaultdict(pd.DataFrame)
 
 # Loop through all files in the directory
-for filename in os.listdir(error_directory):
-    if filename.endswith('.csv'):
-        # Construct the full file path
-        filepath = os.path.join(error_directory, filename)
-
-        # Read the CSV file into a Pandas DataFrame
+for dir in error_directories:
+    for filename in os.listdir(dir):
+        filepath = os.path.join(dir, filename)
         df = pd.read_csv(filepath)
-        df = df[['Subject_IDs', 'Session_IDs']]
+        #looks for "Errors" column in error query output files to distinguish which file is the combined file
+        if "Errors" in df.columns:
+            timestamp = os.path.getctime(filepath)
+            df["Timestamp"] = timestamp
+            df = df[['Subject_IDs', 'Session_IDs', 'Dataset_ID', 'Errors', 'Timestamp']]
+            # Append the DataFrame to the dictionary
+            total_errors_dfs[timestamp] = total_errors_dfs[timestamp].append(df, ignore_index=True)
 
-        # Extract the error type from the filename
-        error_type = filename.split('.csv')[0]
 
-        # Add an 'error_type' column to the DataFrame
-        df['error_type'] = error_type
-
-        # Append the DataFrame to the dictionary
-        error_type_dfs[error_type] = error_type_dfs[error_type].append(df, ignore_index=True)
 
 # Merge the DataFrames based on 'Subject_IDs' and 'Session_IDs'
 merged_df = pd.DataFrame()
-for error_type, df in error_type_dfs.items():
+for error_df, df in total_errors_dfs.items():
     merged_df = merged_df.append(df, ignore_index=True)
 
 # Add a 'rerun_type' column with a default value
