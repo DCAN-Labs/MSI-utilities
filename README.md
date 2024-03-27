@@ -81,7 +81,7 @@ Uses [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-ex
 
 Specifically configured to run with MSI's S3.
 
-Have your aws key and secret ready! This are taken as arguments.
+Have your aws key and secret ready! They are taken as arguments.
 
 
 ## s3_get_x500
