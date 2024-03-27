@@ -74,6 +74,16 @@ separate-errors-into-csvs.py
 	Specify a list of cuBIDS errors that this script will divide out into separate csvs for each error.
 	The output txt files will be named <error_name>-errors.txt
 	
+
+## s3_get_bucket_policy
+
+Uses [boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-example-bucket-policies.html) to get and print out a bucket's policy JSON.
+
+Specifically configured to run with MSI's S3.
+
+Have your aws key and secret ready! They are taken as arguments.
+
+
 ## s3_get_x500
 
 ## session_tsv_maker
