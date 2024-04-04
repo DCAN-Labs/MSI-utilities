@@ -51,7 +51,12 @@ def duplicate_sub_correct(df):
 
 #function that will calculate total counts for each error_type in the combined dataframe
 def aggregate_counts(df):
-    #group by error_type and get count of unique subject_ids
+    #fill NaNs with a place holder
+    df['Error_Type'] = df['Error_Type'].fillna('Unidentified_Error_Type')
+    df['Dataset_ID'] = df['Dataset_ID'].fillna('Unidentified_Dataset_ID')
+    df['Subject_IDs'] = df['Subject_IDs'].fillna('Unidentified_Subject_ID')
+    df['Session_IDs'] = df['Session_IDs'].fillna('Unidentified_Session_ID')
+    #group by error_type and get count of unique subject_ids. Note: any unidentified sub, ses, or dateset ids will be included in counts
     counts_by_errortype = df.groupby(['Error_Type', 'Dataset_ID'])['Subject_IDs'].nunique().reset_index()
     #create a new dataframe that combined dataset_ids into a list for each error_type
     combined_dataset_ids = counts_by_errortype.groupby('Error_Type')['Dataset_ID'].apply(list).reset_index()
