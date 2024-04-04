@@ -3,9 +3,6 @@ import pandas as pd
 import sys
 
 
-#TODO: find a way to account for missing values
-
-
 #check if more than one error_query output directory path is provided as an argument, along with an output dir for the merged scripts
 #TODO: turn into argument parser with a help function
 if len(sys.argv) < 3:
